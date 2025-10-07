@@ -67,12 +67,16 @@ function Err<T>(x_: T): Err<T> {
     }
 
     function unwrap(): never {
-        if (typeof x_ === "object") {
-            try {
-                throw (x_ as any)?.peak();
-            } catch {}
+        if (
+            typeof x_ !== "undefined"
+            && typeof x_ === "object"
+            && x_ !== null
+            && "peak" in x_
+            && typeof x_.peak === "function" 
+        ) {
+            throw x_.peak();
         }
-        throw x_;
+        throw x_;   
     }
 
     function and<_>(_: unknown): Result<unknown> {
@@ -1112,7 +1116,7 @@ function onPackageConf<T>(conf: Conf, onPackageConf: OnPackageConf<T>): Result<T
                 }]
             },
             "engines": {
-                "vscode": conf.engine ?? "=1.22.0"
+                "vscode": conf.engine ?? ">=1.0.0"
             }
         };
         const packageJsonStr: string = JSON.stringify(packageJson, null, 4);
@@ -1126,14 +1130,7 @@ function onPackageConf<T>(conf: Conf, onPackageConf: OnPackageConf<T>): Result<T
 }
 
 function packageConfPath(conf: Conf): string {
-    return pt.join(root(conf), "package.json");
-}
-
-function root(conf: Conf): string {
-    if (conf.root) {
-        return pt.join(__dirname, conf.root);
-    }
-    return __dirname;
+    return pt.join(conf.root, "package.json");
 }
 
 
@@ -1146,7 +1143,7 @@ function parseConfTheme(conf: Conf): [string, string, string] {
         .replaceAll(" ", "-")
         .toLowerCase();
     const themeFileName: string = `${themeNameAsKebabCase}.vsix`;
-    const themePath: string = pt.join(root(conf), themeFileName);
+    const themePath: string = pt.join(conf.root, themeFileName);
     return [
         themeNameAsKebabCase,
         themeFileName,
@@ -1176,7 +1173,7 @@ function onlyIfDependency(): Result<void> {
 }
 
 function onlyIfRoot(conf: Conf): Result<void> {
-    const exists: boolean = fs.existsSync(root(conf));
+    const exists: boolean = fs.existsSync(conf.root);
     if (!exists) {
         return Err<Error>("ERR_ROOT_DOES_NOT_EXIST");
     }
@@ -1197,8 +1194,8 @@ function onlyIfNotPackageConf(conf: Conf): Result<void> {
 export type Conf = {
     "engine"?: SemverVersion | Version,
     "version"?: Version,
-    "root"?: Dir,
-    "theme": ThemeConf
+    "theme": ThemeConf,
+    "root": Dir
 };
 
 export function build(conf: Conf): Result<void> {
