@@ -1084,9 +1084,9 @@ type OnThemeConf<T> = () => T;
 
 type OnPackageConf<T> = () => T;
 
-function onThemeConf<T>(conf: Conf, onThemeConf: OnThemeConf<T>): Result<T> {
+function onThemeConf<T>(conf: Conf, root: Dir, onThemeConf: OnThemeConf<T>): Result<T> {
     try {
-        const [,, themePath] = parseConfTheme(conf);
+        const [,, themePath] = parseConfTheme(conf, root);
         const themeJsonStr: string = JSON.stringify(conf.theme, null, 4);
         fs.writeFileSync(themePath, themeJsonStr);
         const o: T = onThemeConf();
@@ -1097,9 +1097,9 @@ function onThemeConf<T>(conf: Conf, onThemeConf: OnThemeConf<T>): Result<T> {
     }
 }
 
-function onPackageConf<T>(conf: Conf, onPackageConf: OnPackageConf<T>): Result<T> {
+function onPackageConf<T>(conf: Conf, root: Dir, onPackageConf: OnPackageConf<T>): Result<T> {
     try {
-        const [themeName,, themePath] = parseConfTheme(conf);
+        const [themeName,, themePath] = parseConfTheme(conf, root);
         const packageJson: PackageConf = {
             "name": themeName,
             "license": "Unlicense",
@@ -1120,30 +1120,30 @@ function onPackageConf<T>(conf: Conf, onPackageConf: OnPackageConf<T>): Result<T
             }
         };
         const packageJsonStr: string = JSON.stringify(packageJson, null, 4);
-        fs.writeFileSync(packageConfPath(conf), packageJsonStr);
+        fs.writeFileSync(packageConfPath(root), packageJsonStr);
         const o: T = onPackageConf();
-        fs.unlinkSync(packageConfPath(conf));
+        fs.unlinkSync(packageConfPath(root));
         return Ok<T>(o);
     } catch (e) {
         return Err<Error>(Unknown(e));
     }
 }
 
-function packageConfPath(conf: Conf): string {
-    return pt.join(conf.root, "package.json");
+function packageConfPath(root: Dir): string {
+    return pt.join(root, "package.json");
 }
 
 
 // MARK: Parse
 
-function parseConfTheme(conf: Conf): [string, string, string] {
+function parseConfTheme(conf: Conf, root: Dir): [string, string, string] {
     const themeNameAsKebabCase: string = conf.theme.name
         .trimStart()
         .trimEnd()
         .replaceAll(" ", "-")
         .toLowerCase();
     const themeFileName: string = `${themeNameAsKebabCase}.vsix`;
-    const themePath: string = pt.join(conf.root, themeFileName);
+    const themePath: string = pt.join(root, themeFileName);
     return [
         themeNameAsKebabCase,
         themeFileName,
@@ -1172,16 +1172,16 @@ function onlyIfDependency(): Result<void> {
     return Ok<void>(undefined);
 }
 
-function onlyIfRoot(conf: Conf): Result<void> {
-    const exists: boolean = fs.existsSync(conf.root);
+function onlyIfRoot(root: Dir): Result<void> {
+    const exists: boolean = fs.existsSync(root);
     if (!exists) {
         return Err<Error>("ERR_ROOT_DOES_NOT_EXIST");
     }
     return Ok<void>(undefined);
 }
 
-function onlyIfNotPackageConf(conf: Conf): Result<void> {
-    const exists: boolean = fs.existsSync(packageConfPath(conf));
+function onlyIfNotPackageConf(root: Dir): Result<void> {
+    const exists: boolean = fs.existsSync(packageConfPath(root));
     if (exists) {
         return Err<Error>("ERR_PACKAGE_CONF_OVERRIDE");
     }
@@ -1194,44 +1194,59 @@ function onlyIfNotPackageConf(conf: Conf): Result<void> {
 export type Conf = {
     "engine"?: SemverVersion | Version,
     "version"?: Version,
-    "theme": ThemeConf,
-    "root": Dir
+    "theme": ThemeConf
 };
 
-export function build(conf: Conf): Result<void> {
-    return onlyIfDependency()
-        .and<void>(() => onlyIfRoot(conf))
-        .and<void>(() => onlyIfNotPackageConf(conf))
-        .and<void>(() => {
-            return onPackageConf<void>(conf, () => {
-                return onThemeConf<void>(conf, () => {
-                    return wrapUnsafeOperation<void>(() => {
-                        return cp.execSync("vsce package", {
-                            stdio: "ignore"
-                        });
+export type Theme = {
+    build(conf: Conf): Result<void>,
+    install(themeName: string, version: Version): Result<void>,
+    uninstall(themeName: string): Result<void>
+};
+
+export function Theme(root_: Dir) {
+    /** @constructor */ {
+        return { build, install, uninstall };
+    }
+
+    function build(conf: Conf): Result<void> {
+        return onlyIfDependency()
+            .and<void>(() => onlyIfRoot(root_))
+            .and<void>(() => onlyIfNotPackageConf(root_))
+            .and<void>(() => {
+                return onPackageConf<void>(conf, root_, () => {
+                    return onThemeConf<void>(conf, root_, () => {
+                        return wrapUnsafeOperation<void>(() => {
+                            return cp.execSync("vsce package", {
+                                stdio: "ignore",
+                                cwd: root_
+                            });
+                        })
                     })
                 })
-            })
-        }) as Result<void>;
-}
+            }) as Result<void>;
+    }
 
-export function install(themeName: string, version: Version): Result<void> {
-    return uninstall(themeName).and<void>(() => {
+    function install(themeName: string, version: Version): Result<void> {
+        return onlyIfDependency()
+            .and<void>(() => onlyIfRoot(root_))
+            .and<void>(() => uninstall(themeName))
+            .and<void>(() => wrapUnsafeOperation<void>(() => {
+                return cp.execSync(`code --install-extension ${themeName}-${version}.vsix`, {
+                    stdio: "ignore",
+                    cwd: root_
+                });
+            })) as Result<void>;
+    }
+
+    function uninstall(themeName: string): Result<void> {
         return wrapUnsafeOperation<void>(() => {
-            return cp.execSync(`code --install-extension ${themeName}-${version}.vsix`, {
-                stdio: "ignore"
-            });
-        })
-    }) as Result<void>;
-}
-
-export function uninstall(themeName: string): Result<void> {
-    return wrapUnsafeOperation<void>(() => {
-        try {
-            cp.execSync(`code --uninstall-extension undefined_publisher.${themeName}`, {
-                stdio: "ignore"
-            });
-        } catch {}
-        return;
-    });
+            try {
+                cp.execSync(`code --uninstall-extension undefined_publisher.${themeName}`, {
+                    stdio: "ignore",
+                    cwd: root_
+                });
+            } catch {}
+            return;
+        });
+    }
 }

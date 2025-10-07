@@ -26,7 +26,9 @@ The example below will build a theme and place the `.vsix` at the entry director
 ```ts
 import * as orca from "vs-orca";
 
-orca.build({
+const theme: orca.Theme = orca.Theme("/theme/");
+
+theme.build({
     "engine": ">=1.80.0",
     "version": "0.1.0",
     "theme": {
@@ -37,9 +39,8 @@ orca.build({
             "function": "#FFFFFF"
         }
     }
-}).and(() => {
-    return orca.install("orca", "0.1.0");
-}).and(() => {
-    return orca.uninstall("orca");
-}).unwrap();
+})
+.and(() => orca.install("orca", "0.1.0"))
+.and(() => orca.uninstall("orca"))
+.unwrap();
 ```
