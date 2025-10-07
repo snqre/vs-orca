@@ -123,6 +123,10 @@ export type Version = `${bigint}.${bigint}.${bigint}`;
 
 export type JsonPath = Path & `${string}.json`;
 
+export type Dir =
+    | `/`
+    | `/${string}/`
+
 export type Path = 
     |   `/${string}.${Extension}`
     |  `./${string}.${Extension}`
@@ -1112,20 +1116,23 @@ function onPackageConf<T>(conf: Conf, onPackageConf: OnPackageConf<T>): Result<T
             }
         };
         const packageJsonStr: string = JSON.stringify(packageJson, null, 4);
-        fs.writeFileSync(packageConfPath(), packageJsonStr);
+        fs.writeFileSync(packageConfPath(conf), packageJsonStr);
         const o: T = onPackageConf();
-        fs.unlinkSync(packageConfPath());
+        fs.unlinkSync(packageConfPath(conf));
         return Ok<T>(o);
     } catch (e) {
         return Err<Error>(Unknown(e));
     }
 }
 
-function packageConfPath(): string {
-    return pt.join(root(), "package.json");
+function packageConfPath(conf: Conf): string {
+    return pt.join(root(conf), "package.json");
 }
 
-function root(): string {
+function root(conf: Conf): string {
+    if (conf.root) {
+        return pt.join(__dirname, conf.root);
+    }
     return __dirname;
 }
 
@@ -1139,7 +1146,7 @@ function parseConfTheme(conf: Conf): [string, string, string] {
         .replaceAll(" ", "-")
         .toLowerCase();
     const themeFileName: string = `${themeNameAsKebabCase}.vsix`;
-    const themePath: string = pt.join(root(), themeFileName);
+    const themePath: string = pt.join(root(conf), themeFileName);
     return [
         themeNameAsKebabCase,
         themeFileName,
@@ -1168,16 +1175,16 @@ function onlyIfDependency(): Result<void> {
     return Ok<void>(undefined);
 }
 
-function onlyIfRoot(): Result<void> {
-    const exists: boolean = fs.existsSync(root());
+function onlyIfRoot(conf: Conf): Result<void> {
+    const exists: boolean = fs.existsSync(root(conf));
     if (!exists) {
         return Err<Error>("ERR_ROOT_DOES_NOT_EXIST");
     }
     return Ok<void>(undefined);
 }
 
-function onlyIfNotPackageConf(): Result<void> {
-    const exists: boolean = fs.existsSync(packageConfPath());
+function onlyIfNotPackageConf(conf: Conf): Result<void> {
+    const exists: boolean = fs.existsSync(packageConfPath(conf));
     if (exists) {
         return Err<Error>("ERR_PACKAGE_CONF_OVERRIDE");
     }
@@ -1190,13 +1197,14 @@ function onlyIfNotPackageConf(): Result<void> {
 export type Conf = {
     "engine"?: SemverVersion | Version,
     "version"?: Version,
+    "root"?: Dir,
     "theme": ThemeConf
 };
 
 export function build(conf: Conf): Result<void> {
     return onlyIfDependency()
-        .and<void>(onlyIfRoot)
-        .and<void>(onlyIfNotPackageConf)
+        .and<void>(() => onlyIfRoot(conf))
+        .and<void>(() => onlyIfNotPackageConf(conf))
         .and<void>(() => {
             return onPackageConf<void>(conf, () => {
                 return onThemeConf<void>(conf, () => {
