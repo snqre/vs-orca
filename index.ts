@@ -1203,7 +1203,7 @@ export type Theme = {
     uninstall(themeName: string): Result<void>
 };
 
-export function Theme(root_: Dir) {
+export function Theme(root_: Dir): Theme {
     /** @constructor */ {
         return { build, install, uninstall };
     }
