@@ -24,9 +24,10 @@ Orca must run from a blank writable directory where `package.json` and `.vsix` c
 The example below will build a theme and place the `.vsix` at the entry directory of the program. Then it will install the `orca-1.0.0.vsix` on `vscode` using the `code` cli tool, uninstall the theme, and finally `unwrap` the outcome of the operation. If everything goes well, you should have a `orca-1.0.0.vsix` build.
 
 ```ts
-import * as orca from "vs-orca";
+import * as vs from "vs-orca";
 
-const theme: orca.Theme = orca.Theme("/theme/");
+const themeRoot: vs.Dir = pt.join(__dirname, "/theme/") as vs.Dir;
+const theme: vs.Theme = vs.Theme(themeRoot);
 
 theme.build({
     "engine": ">=1.80.0",
