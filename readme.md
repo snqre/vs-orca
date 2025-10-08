@@ -21,7 +21,7 @@ Orca must run from a blank writable directory where `package.json` and `.vsix` c
 
 ## Quick Start
 
-The example below will build a theme and place the `.vsix` at the entry directory of the program. Then it will install the `orca-1.0.0.vsix` on `vscode` using the `code` cli tool, uninstall the theme, and finally `unwrap` the outcome of the operation. If everything goes well, you should have a `orca-1.0.0.vsix` build.
+The example below will build a theme and place the `.vsix` at the entry directory of the program. Then it will install the `nord-0.1.$timestamp.vsix` on `vscode` using the `code` cli tool, uninstall the theme, and finally `unwrap` the outcome of the operation. If everything goes well, you should have a `orca-1.0.$timestamp.vsix` build.
 
 ### Note
 Your `root` should be in an empty directory.
@@ -35,7 +35,7 @@ const now: bigint = BigInt(nowNum);
 const themeVersion: vs.Version = `0.1.${now}`;
 const themeRoot: vs.Dir = pt.join(__dirname, "/theme/") as vs.Dir;
 const theme: vs.Theme = vs.Theme(themeRoot);
-const themeName: string = "orca-nord";
+const themeName: string = "nord";
 const themeConf: vs.Conf = {
   "version": themeVersion,
   "publisher": "orca",
