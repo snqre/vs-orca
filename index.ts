@@ -1379,7 +1379,7 @@ function Brush(): Brush {
     return self_;
 }
 
-export function Extension(conf_: Conf, root_: Dir): Extension {
+function Extension(conf_: Conf, root_: Dir): Extension {
     const self_ = {
         conf,
         install,
