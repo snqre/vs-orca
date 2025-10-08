@@ -180,6 +180,7 @@ export type PackageConf = {
     "type"?: PackageConfType,
     "description"?: string,
     "displayName"?: string,
+    "publisher"?: string,
     "categories"?: Array<PackageConfCategory>,
     "keywords"?: Array<string>,
     "version"?: Version,
@@ -1100,41 +1101,50 @@ function onThemeConf<T>(conf: Conf, root: Dir, onThemeConf: OnThemeConf<T>): Res
     }
 }
 
-function onPackageConf<T>(conf: Conf, root: Dir, onPackageConf: OnPackageConf<T>): Result<T> {
+function onPackageConf<T>(conf: Conf, root: Dir, publisher: string, onPackageConf: OnPackageConf<T>): Result<T> {
     try {
-        const [themeName,, themePath] = parseConfTheme(conf, root);
-        const packageJson: PackageConf = {
-            "name": themeName,
-            "license": "Unlicense",
-            "version": conf.version ?? "0.1.0",
-            "contributes": {
-                "themes": [{
-                    "label": themeName,
-
-                    // @dev @warn
-                    // This should not be an issue because Orca will
-                    // write the theme file at the exact path, but is unsafe
-                    // regardless.
-                    "path": themePath as JsonPath,
-                    "uiTheme": ({
-                        "hc": "hc-black",
-                        "light": "vs",
-                        "dark": "vs-dark"
-                    } as Record<ThemeType, PackageConfUiTheme>)[conf.theme.type]
-                }]
-            },
-            "engines": {
-                "vscode": conf.engine ?? ">=1.0.0"
-            }
-        };
-        const packageJsonStr: string = JSON.stringify(packageJson, null, 4);
-        fs.writeFileSync(packageConfPath(root), packageJsonStr);
+        const [
+            themeName,
+            _, 
+            themePath
+        ] = parseConfTheme(conf, root);
+        const themeDir: Dir = pt.dirname(themePath) as Dir;
+        fs.mkdirSync(themeDir, {
+            recursive: true
+        });
+        const json: string = JSON.stringify(packageConf(conf, publisher, themeName, themePath), null, 4);
+        fs.writeFileSync(packageConfPath(root), json);
         const o: T = onPackageConf();
         fs.unlinkSync(packageConfPath(root));
         return Ok<T>(o);
     } catch (e) {
         return Err<Error>(Unknown(e));
     }
+}
+
+function packageConf(conf: Conf, publisher: string, themeName: string, themePath: string): PackageConf {
+    return {
+        "name": themeName,
+        "description": conf.description,
+        "displayName": conf.displayName,
+        "publisher": publisher,
+        "license": "Unlicense",
+        "version": conf.version ?? "0.1.0",
+        "contributes": {
+            "themes": [{
+                "label": themeName,
+                "path": "themes/" + pt.basename(themePath) as JsonPath,
+                "uiTheme": ({
+                    "hc": "hc-black",
+                    "light": "vs",
+                    "dark": "vs-dark"
+                } as Record<ThemeType, PackageConfUiTheme>)[conf.theme.type]
+            }]
+        },
+        "engines": {
+            "vscode": conf.engine ?? ">=1.0.0"
+        }
+    };
 }
 
 function packageConfPath(root: Dir): string {
@@ -1151,7 +1161,7 @@ function parseConfTheme(conf: Conf, root: Dir): [string, string, string] {
         .replaceAll(" ", "-")
         .toLowerCase();
     const themeFileName: string = `${themeNameAsKebabCase}.json`;
-    const themePath: string = pt.join(root, themeFileName);
+    const themePath: string = pt.join(root, "themes", themeFileName);
     return [
         themeNameAsKebabCase,
         themeFileName,
@@ -1200,8 +1210,11 @@ function onlyIfNotPackageConf(root: Dir): Result<void> {
 // MARK: API
 
 export type Conf = {
-    "engine"?: SemverVersion | Version,
+    "name": string,    
+    "description": string,
+    "displayName": string,
     "version"?: Version,
+    "engine"?: SemverVersion | Version,
     "theme": ThemeConf
 };
 
@@ -1211,7 +1224,7 @@ export type Theme = {
     uninstall(themeName: string): Result<void>
 };
 
-export function Theme(root_: Dir): Theme {
+export function Theme(root_: Dir, publisher_: string): Theme {
     /** @constructor */ {
         return { build, install, uninstall };
     }
@@ -1221,7 +1234,7 @@ export function Theme(root_: Dir): Theme {
             .and<void>(() => onlyIfRoot(root_))
             .and<void>(() => onlyIfNotPackageConf(root_))
             .and<void>(() => {
-                return onPackageConf<void>(conf, root_, () => {
+                return onPackageConf<void>(conf, root_, publisher_, () => {
                     return onThemeConf<void>(conf, root_, () => {
                         return wrapUnsafeOperation<void>(() => {
                             return cp.execSync("vsce package", {
@@ -1249,7 +1262,7 @@ export function Theme(root_: Dir): Theme {
     function uninstall(themeName: string): Result<void> {
         return wrapUnsafeOperation<void>(() => {
             try {
-                cp.execSync(`code --uninstall-extension undefined_publisher.${themeName}`, {
+                cp.execSync(`code --uninstall-extension ${publisher_}.${themeName}`, {
                     stdio: "ignore",
                     cwd: root_
                 });
