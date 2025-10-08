@@ -254,14 +254,15 @@ export type PackageConfEngine =
 // MARK: Text Mate
 
 export type TokenColorConf = {
-    scope: Array<TextMateScope>,
-    settings: TextMateConf
+    "name"?: string,
+    "scope": Array<TextMateScope>,
+    "settings": TextMateConf
 };
 
 export type TextMateConf = {
-    foreground?: Color,
-    background?: Color,
-    fontStyle?: FontStyle
+    "foreground"?: Color,
+    "background"?: Color,
+    "fontStyle"?: FontStyle
 };
 
 export type TextMateScope =

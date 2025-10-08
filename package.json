@@ -10,7 +10,7 @@
 		"code",
 		"theme"
 	],
-	"version": "0.1.15",
+	"version": "0.1.16",
 	"module": "index.ts",
 	"readme": "readme.md",
 	"private": false,
