@@ -1142,7 +1142,7 @@ function parseConfTheme(conf: Conf, root: Dir): [string, string, string] {
         .trimEnd()
         .replaceAll(" ", "-")
         .toLowerCase();
-    const themeFileName: string = `${themeNameAsKebabCase}.vsix`;
+    const themeFileName: string = `${themeNameAsKebabCase}.json`;
     const themePath: string = pt.join(root, themeFileName);
     return [
         themeNameAsKebabCase,
