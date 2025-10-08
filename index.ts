@@ -188,7 +188,8 @@ export type PackageConf = {
     "contributes"?: {
         "themes"?: Array<{
             "label": string,
-            "path": JsonPath
+            "path": JsonPath,
+            "uiTheme": PackageConfUiTheme
         }>
     },
     "main"?: Path,
@@ -199,6 +200,8 @@ export type PackageConf = {
     "devDependencies"?: Record<string, SemverVersion | Version>,
     "peerDependencies"?: Record<string, SemverVersion>
 };
+
+export type PackageConfUiTheme = "vs" | "vs-dark" | "hc-black" | "hc-light";
 
 export type PackageConfCategory =
     | "Programming Languages"
@@ -1112,7 +1115,12 @@ function onPackageConf<T>(conf: Conf, root: Dir, onPackageConf: OnPackageConf<T>
                     // This should not be an issue because Orca will
                     // write the theme file at the exact path, but is unsafe
                     // regardless.
-                    "path": themePath as JsonPath
+                    "path": themePath as JsonPath,
+                    "uiTheme": ({
+                        "hc": "hc-black",
+                        "light": "vs",
+                        "dark": "vs-dark"
+                    } as Record<ThemeType, PackageConfUiTheme>)[conf.theme.type]
                 }]
             },
             "engines": {
