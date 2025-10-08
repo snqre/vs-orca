@@ -1276,6 +1276,7 @@ export type Brush = {
     editor(conf: EditorColorConf): Brush,
     tokenSemantic(conf: SemanticTokenConf): Brush,
     token(conf: TokenColorConf): Brush,
+    tokenf(foreground: Color, scope: Array<TextMateScope>): Brush,
     build(): BrushPartialConf
 };
 
@@ -1336,6 +1337,7 @@ function Brush(): Brush {
         editor,
         tokenSemantic,
         token,
+        tokenf,
         build
     }
 
@@ -1370,6 +1372,15 @@ function Brush(): Brush {
         }
         conf_.theme.tokenColors.push(conf);
         return self_;
+    }
+
+    function tokenf(foreground: Color, scope: Array<TextMateScope>): Brush {
+        return token({
+            "scope": scope,
+            "settings": {
+                "foreground": foreground
+            }
+        });
     }
 
     function build(): BrushPartialConf {

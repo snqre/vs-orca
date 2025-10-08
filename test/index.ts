@@ -10,17 +10,12 @@ vs.build(b => {
         "function": "#FFFFFF"
     });
 
-    b.token({
-        "scope": [
-            "comment",
-            "comment.block",
-            "comment.block.documentation",
-            "comment.block.documentation.cpp"
-        ],
-        "settings": {
-            "foreground": "#FFFFFF"
-        }
-    });
+    b.tokenf("#FFFFFF", [
+        "comment",
+        "comment.block",
+        "comment.block.documentation",
+        "comment.block.documentation.cpp"
+    ]);
 
     return {
         "publisher": "hello-lab",
