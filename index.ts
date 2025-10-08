@@ -1101,18 +1101,14 @@ function onThemeConf<T>(conf: Conf, root: Dir, onThemeConf: OnThemeConf<T>): Res
     }
 }
 
-function onPackageConf<T>(conf: Conf, root: Dir, publisher: string, onPackageConf: OnPackageConf<T>): Result<T> {
+function onPackageConf<T>(conf: Conf, root: Dir, onPackageConf: OnPackageConf<T>): Result<T> {
     try {
         const [
             themeName,
             _, 
             themePath
         ] = parseConfTheme(conf, root);
-        const themeDir: Dir = pt.dirname(themePath) as Dir;
-        fs.mkdirSync(themeDir, {
-            recursive: true
-        });
-        const json: string = JSON.stringify(packageConf(conf, publisher, themeName, themePath), null, 4);
+        const json: string = JSON.stringify(packageConf(conf, themeName, themePath), null, 4);
         fs.writeFileSync(packageConfPath(root), json);
         const o: T = onPackageConf();
         fs.unlinkSync(packageConfPath(root));
@@ -1122,18 +1118,18 @@ function onPackageConf<T>(conf: Conf, root: Dir, publisher: string, onPackageCon
     }
 }
 
-function packageConf(conf: Conf, publisher: string, themeName: string, themePath: string): PackageConf {
+function packageConf(conf: Conf, themeName: string, themePath: string): PackageConf {
     return {
         "name": themeName,
         "description": conf.description,
         "displayName": conf.displayName,
-        "publisher": publisher,
+        "publisher": conf.publisher,
         "license": "Unlicense",
         "version": conf.version ?? "0.1.0",
         "contributes": {
             "themes": [{
                 "label": themeName,
-                "path": "themes/" + pt.basename(themePath) as JsonPath,
+                "path": "./" + themeName + ".json" as JsonPath,
                 "uiTheme": ({
                     "hc": "hc-black",
                     "light": "vs",
@@ -1161,7 +1157,7 @@ function parseConfTheme(conf: Conf, root: Dir): [string, string, string] {
         .replaceAll(" ", "-")
         .toLowerCase();
     const themeFileName: string = `${themeNameAsKebabCase}.json`;
-    const themePath: string = pt.join(root, "themes", themeFileName);
+    const themePath: string = pt.join(root, themeFileName);
     return [
         themeNameAsKebabCase,
         themeFileName,
@@ -1209,10 +1205,11 @@ function onlyIfNotPackageConf(root: Dir): Result<void> {
 
 // MARK: API
 
-export type Conf = {
-    "name": string,    
-    "description": string,
-    "displayName": string,
+export type Conf = {  
+    "description"?: string,
+    "displayName"?: string,
+    "publisher": string,
+    "license"?: License,
     "version"?: Version,
     "engine"?: SemverVersion | Version,
     "theme": ThemeConf
@@ -1220,21 +1217,37 @@ export type Conf = {
 
 export type Theme = {
     build(conf: Conf): Result<void>,
-    install(themeName: string, version: Version): Result<void>,
-    uninstall(themeName: string): Result<void>
+    installConf(conf: Conf): Result<void>,
+    install(themeName: string, publisher: string, version: Version): Result<void>,
+    uninstallConf(conf: Conf): Result<void>,
+    uninstall(themeName: string, publisher: string): Result<void>
 };
 
-export function Theme(root_: Dir, publisher_: string): Theme {
+export function Theme(root_: Dir): Theme {
     /** @constructor */ {
-        return { build, install, uninstall };
+        return {
+            build,
+            installConf,
+            install,
+            uninstallConf,
+            uninstall
+        };
     }
 
     function build(conf: Conf): Result<void> {
+        const name: string = conf.theme.name = conf.theme.name
+            .trimStart()
+            .trimEnd()
+            .replaceAll(" ", "-");
+        conf.displayName ??= "";
+        conf.description ??= "";
+        conf.version ??= "0.1.0";
+        conf.theme.name = name;
         return onlyIfDependency()
             .and<void>(() => onlyIfRoot(root_))
             .and<void>(() => onlyIfNotPackageConf(root_))
             .and<void>(() => {
-                return onPackageConf<void>(conf, root_, publisher_, () => {
+                return onPackageConf<void>(conf, root_, () => {
                     return onThemeConf<void>(conf, root_, () => {
                         return wrapUnsafeOperation<void>(() => {
                             return cp.execSync("vsce package", {
@@ -1247,22 +1260,44 @@ export function Theme(root_: Dir, publisher_: string): Theme {
             }) as Result<void>;
     }
 
-    function install(themeName: string, version: Version): Result<void> {
+    function installConf(conf: Conf): Result<void> {
+        const name: string = conf.theme.name = conf.theme.name
+            .trimStart()
+            .trimEnd()
+            .replaceAll(" ", "-");
+        conf.version ??= "0.1.0";
+        conf.theme.name = name;
+        return install(conf.theme.name, conf.publisher, conf.version);
+    }
+
+    function install(name: string, publisher: string, version: Version): Result<void> {
         return onlyIfDependency()
             .and<void>(() => onlyIfRoot(root_))
-            .and<void>(() => uninstall(themeName))
+            .and<void>(() => uninstall(name, publisher))
             .and<void>(() => wrapUnsafeOperation<void>(() => {
-                return cp.execSync(`code --install-extension ${themeName}-${version}.vsix`, {
+                return cp.execSync(`code --install-extension ${name}-${version}.vsix`, {
                     stdio: "ignore",
                     cwd: root_
                 });
             })) as Result<void>;
     }
 
-    function uninstall(themeName: string): Result<void> {
+    function uninstallConf(conf: Conf): Result<void> {
+        const name: string = conf.theme.name = conf.theme.name
+            .trimStart()
+            .trimEnd()
+            .replaceAll(" ", "-");
+        conf.displayName ??= "";
+        conf.description ??= "";
+        conf.version ??= "0.1.0";
+        conf.theme.name = name;
+        return uninstall(conf.theme.name, conf.publisher);
+    }
+
+    function uninstall(name: string, publisher: string): Result<void> {
         return wrapUnsafeOperation<void>(() => {
             try {
-                cp.execSync(`code --uninstall-extension ${publisher_}.${themeName}`, {
+                cp.execSync(`code --uninstall-extension ${publisher}.${name}`, {
                     stdio: "ignore",
                     cwd: root_
                 });
