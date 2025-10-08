@@ -1350,7 +1350,10 @@ function Brush(): Brush {
         if (conf_.theme === undefined) {
             conf_.theme = {};
         }
-        Object.assign(conf_.theme, conf);
+        if (conf_.theme.colors === undefined) {
+            conf_.theme.colors = {};
+        }
+        Object.assign(conf_.theme.colors, conf);
         return self_;
     }
 
@@ -1358,8 +1361,11 @@ function Brush(): Brush {
         if (conf_.theme === undefined) {
             conf_.theme = {};
         }
-        conf_.theme.semanticHighlighting = true;
-        Object.assign(conf_.theme, conf);
+        if (conf_.theme.semanticTokenColors === undefined) {
+            conf_.theme.semanticHighlighting = true;
+            conf_.theme.semanticTokenColors = {};
+        }
+        Object.assign(conf_.theme.semanticTokenColors, conf);
         return self_;
     }
 
