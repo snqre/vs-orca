@@ -26,6 +26,7 @@ export type Error =
     | Unknown
     | "ERR_ROOT_DOES_NOT_EXIST"
     | "ERR_PACKAGE_CONF_OVERRIDE"
+    | "ERR_MISSING_CONF_NAME"
     | "ERR_MISSING_DEPENDENCY_VSCE"
     | "ERR_MISSING_DEPENDENCY_CODE";
 
@@ -56,7 +57,7 @@ type Err<_A> = {
     ok: false,
     err: true,
     unwrap(): never,
-    and<_B>(_: unknown): Result<unknown>
+    and<B>(_: unknown): Result<B>
 };
 
 function Err<T>(x_: T): Err<T> {
@@ -76,10 +77,13 @@ function Err<T>(x_: T): Err<T> {
         ) {
             throw x_.peak();
         }
-        throw x_;   
+        if (typeof x_ === "string") {
+            throw Error(x_);
+        }
+        throw x_;
     }
 
-    function and<_>(_: unknown): Result<unknown> {
+    function and<B>(_: unknown): Result<B> {
         return Err<T>(x_);
     }
 }
@@ -132,11 +136,11 @@ export type Dir =
     | `/${string}/`
 
 export type Path = 
-    |   `/${string}.${Extension}`
-    |  `./${string}.${Extension}`
-    | `../${string}.${Extension}`;
+    |   `/${string}.${PathExtension}`
+    |  `./${string}.${PathExtension}`
+    | `../${string}.${PathExtension}`;
 
-export type Extension =
+export type PathExtension =
     | "ts"
     | "js"
     | "mjs"
@@ -1139,7 +1143,7 @@ function onPackageConf<T>(conf: Conf, root: Dir, onPackageConf: OnPackageConf<T>
             _, 
             themePath
         ] = parseConfTheme(conf, root);
-        const json: string = JSON.stringify(packageConf(conf, themeName, themePath), null, 4);
+        const json: string = JSON.stringify(packageConf(conf, themeName), null, 4);
         fs.writeFileSync(packageConfPath(root), json);
         const o: T = onPackageConf();
         fs.unlinkSync(packageConfPath(root));
@@ -1149,18 +1153,18 @@ function onPackageConf<T>(conf: Conf, root: Dir, onPackageConf: OnPackageConf<T>
     }
 }
 
-function packageConf(conf: Conf, themeName: string, themePath: string): PackageConf {
+function packageConf(conf: Conf, name: string): PackageConf {
     return {
-        "name": themeName,
+        "name": name,
         "description": conf.description,
         "displayName": conf.displayName,
         "publisher": conf.publisher,
         "license": "Unlicense",
-        "version": conf.version ?? "0.1.0",
+        "version": conf.version,
         "contributes": {
             "themes": [{
-                "label": themeName,
-                "path": "./" + themeName + ".json" as JsonPath,
+                "label": name,
+                "path": "./" + name + ".json" as JsonPath,
                 "uiTheme": ({
                     "hc": "hc-black",
                     "light": "vs",
@@ -1169,7 +1173,7 @@ function packageConf(conf: Conf, themeName: string, themePath: string): PackageC
             }]
         },
         "engines": {
-            "vscode": conf.engine ?? ">=1.0.0"
+            "vscode": conf.engine ?? "^1.0.0"
         }
     };
 }
@@ -1234,7 +1238,7 @@ function onlyIfNotPackageConf(root: Dir): Result<void> {
 }
 
 
-// MARK: API
+// MARK: PUBLIC
 
 export type Conf = {  
     "description"?: string,
@@ -1246,94 +1250,179 @@ export type Conf = {
     "theme": ThemeConf
 };
 
-export type Theme = {
-    build(conf: Conf): Result<void>,
-    installConf(conf: Conf): Result<void>,
-    install(themeName: string, publisher: string, version: Version): Result<void>,
-    uninstallConf(conf: Conf): Result<void>,
-    uninstall(themeName: string, publisher: string): Result<void>
+export type BrushMetadataConf = {
+    "description"?: string,
+    "displayName"?: string,
+    "license"?: License,
+    "version"?: Version,
+    "engine"?: SemverVersion | Version
 };
 
-export function Theme(root_: Dir): Theme {
-    /** @constructor */ {
-        return {
-            build,
-            installConf,
-            install,
-            uninstallConf,
-            uninstall
-        };
-    }
+export type BrushRequiredConf = {
+    "publisher": string,
+    "name": string,
+    "type": ThemeType,
+    "root": Dir  
+};
 
-    function build(conf: Conf): Result<void> {
-        const name: string = conf.theme.name = conf.theme.name
-            .trimStart()
-            .trimEnd()
-            .replaceAll(" ", "-");
-        conf.displayName ??= "";
-        conf.description ??= "";
-        conf.version ??= "0.1.0";
-        conf.theme.name = name;
-        return onlyIfDependency()
-            .and<void>(() => onlyIfRoot(root_))
-            .and<void>(() => onlyIfNotPackageConf(root_))
-            .and<void>(() => {
-                return onPackageConf<void>(conf, root_, () => {
-                    return onThemeConf<void>(conf, root_, () => {
-                        return wrapUnsafeOperation<void>(() => {
-                            return cp.execSync("vsce package", {
-                                stdio: "ignore",
-                                cwd: root_
-                            });
-                        })
+export type BrushPartialConf = 
+    Omit<Partial<Conf>, "theme">
+    & {
+    "theme"?: Partial<ThemeConf>
+};
+
+export type Brush = {
+    metadata(conf: BrushMetadataConf): Brush,
+    editor(conf: EditorColorConf): Brush,
+    tokenSemantic(conf: SemanticTokenConf): Brush,
+    token(conf: TokenColorConf): Brush,
+    build(): BrushPartialConf
+};
+
+export type PartialBrush = Omit<Brush, "build">;
+
+export type Extension = {
+    conf(): Readonly<Conf>
+    install(): Result<Extension>,
+    uninstall(): Result<Extension>
+};
+
+export type OnBuild = (brush: PartialBrush) => BrushRequiredConf;
+
+export function build(onBuild: OnBuild): Result<Extension> {
+    const brush: Brush = Brush();
+    const reqConf: BrushRequiredConf = onBuild(brush);
+    const parConf: BrushPartialConf = brush.build();
+    const conf: Conf = {
+        ...parConf,
+        "publisher": reqConf.publisher,
+        "theme": {
+            ...(parConf.theme ?? {}),
+            "name": reqConf.name,
+            "type": reqConf.type
+        }
+    };
+    const nowNum: number = Date.now();
+    const now: bigint = BigInt(nowNum);
+    const confn: Conf = {
+        ...conf,
+        "version": `0.1.${now}`
+    };
+    if (confn.theme.name === "") {
+        return Err<Error>("ERR_MISSING_CONF_NAME");
+    }
+    return onlyIfDependency()
+        .and<void>(() => onlyIfRoot(reqConf.root))
+        .and<void>(() => onlyIfNotPackageConf(reqConf.root))
+        .and<void>(() => {
+            return onPackageConf<void>(confn, reqConf.root, () => {
+                return onThemeConf<void>(confn, reqConf.root, () => {
+                    return wrapUnsafeOperation<void>(() => {
+                        return cp.execSync("vsce package", {
+                            stdio: "ignore",
+                            cwd: reqConf.root
+                        });
                     })
                 })
-            }) as Result<void>;
+            })
+        })
+        .and<Extension>(() => Ok(Extension(confn, reqConf.root))) as Result<Extension>;
+}
+
+function Brush(): Brush {
+    const conf_: BrushPartialConf = {};
+    const self_: Brush = {
+        metadata,
+        editor,
+        tokenSemantic,
+        token,
+        build
     }
 
-    function installConf(conf: Conf): Result<void> {
-        const name: string = conf.theme.name = conf.theme.name
+    function metadata(conf: BrushMetadataConf): Brush {
+        Object.assign(conf_, conf);
+        return self_;
+    }
+
+    function editor(conf: EditorColorConf): Brush {
+        if (conf_.theme === undefined) {
+            conf_.theme = {};
+        }
+        Object.assign(conf_.theme, conf);
+        return self_;
+    }
+
+    function tokenSemantic(conf: SemanticTokenConf): Brush {
+        if (conf_.theme === undefined) {
+            conf_.theme = {};
+        }
+        conf_.theme.semanticHighlighting = true;
+        Object.assign(conf_.theme, conf);
+        return self_;
+    }
+
+    function token(conf: TokenColorConf): Brush {
+        if (conf_.theme === undefined) {
+            conf_.theme = {};
+        }
+        if (conf_.theme.tokenColors === undefined) {
+            conf_.theme.tokenColors = [];
+        }
+        conf_.theme.tokenColors.push(conf);
+        return self_;
+    }
+
+    function build(): BrushPartialConf {
+        return conf_;
+    }
+
+    return self_;
+}
+
+export function Extension(conf_: Conf, root_: Dir): Extension {
+    const self_ = {
+        conf,
+        install,
+        uninstall
+    };
+
+    function conf(): Readonly<Conf> {
+        return conf_;
+    }
+
+    function install(): Result<Extension> {
+        const name: string = conf_.theme.name
             .trimStart()
             .trimEnd()
             .replaceAll(" ", "-");
-        conf.version ??= "0.1.0";
-        conf.theme.name = name;
-        return install(conf.theme.name, conf.publisher, conf.version);
-    }
-
-    function install(name: string, publisher: string, version: Version): Result<void> {
         return onlyIfDependency()
             .and<void>(() => onlyIfRoot(root_))
-            .and<void>(() => uninstall(name, publisher))
-            .and<void>(() => wrapUnsafeOperation<void>(() => {
-                return cp.execSync(`code --install-extension ${name}-${version}.vsix`, {
+            .and<Extension>(() => uninstall())
+            .and<Extension>(() => wrapUnsafeOperation<Extension>(() => {
+                cp.execSync(`code --install-extension ${name}-${conf_.version}.vsix`, {
                     stdio: "ignore",
                     cwd: root_
                 });
-            })) as Result<void>;
+                return self_;
+            })) as Result<Extension>;
     }
 
-    function uninstallConf(conf: Conf): Result<void> {
-        const name: string = conf.theme.name = conf.theme.name
-            .trimStart()
-            .trimEnd()
-            .replaceAll(" ", "-");
-        conf.displayName ??= "";
-        conf.description ??= "";
-        conf.version ??= "0.1.0";
-        conf.theme.name = name;
-        return uninstall(conf.theme.name, conf.publisher);
-    }
-
-    function uninstall(name: string, publisher: string): Result<void> {
+    function uninstall(): Result<Extension> {
         return wrapUnsafeOperation<void>(() => {
             try {
-                cp.execSync(`code --uninstall-extension ${publisher}.${name}`, {
+                const name: string = conf_.theme.name
+                    .trimStart()
+                    .trimEnd()
+                    .replaceAll(" ", "-");
+                cp.execSync(`code --uninstall-extension ${conf_.publisher}.${name}`, {
                     stdio: "ignore",
                     cwd: root_
                 });
             } catch {}
-            return;
-        });
+            return Ok(undefined);
+        })
+        .and<Extension>(() => Ok(self_)) as Result<Extension>;
     }
+    
+    return self_;
 }

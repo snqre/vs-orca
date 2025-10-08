@@ -1,25 +1,34 @@
-import * as vs_orca from "..";
+import * as pt from "path";
+import * as vs from "..";
 
-const themeConf: vs_orca.Conf = {
-    "description": "",
-    "displayName": "Vs Orca Debug",
-    "publisher": "debug",
-    "license": "Unlicense",
-    "version": "0.1.0",
-    "theme": {
-        "name": "vs-orca",
-        "type": "dark",
-        "colors": {
-            "editor.foreground": "#121212",
-            "editor.background": "#121212"
+vs.build(b => {
+    b.metadata({
+        "license": "MIT"
+    });
+
+    b.tokenSemantic({
+        "function": "#FFFFFF"
+    });
+
+    b.token({
+        "scope": [
+            "comment",
+            "comment.block",
+            "comment.block.documentation",
+            "comment.block.documentation.cpp"
+        ],
+        "settings": {
+            "foreground": "#FFFFFF"
         }
-    }
-};
+    });
 
-const themeRoot: vs_orca.Dir = __dirname as vs_orca.Dir;
-const theme: vs_orca.Theme = vs_orca.Theme(themeRoot);
-
-theme
-    .build(themeConf)
-    .and(() => theme.installConf(themeConf))
-    .unwrap();
+    return {
+        "publisher": "hello-lab",
+        "name": "hello-world",
+        "type": "dark",
+        "root": pt.join(__dirname, "/") as vs.Dir
+    };
+})
+.and<vs.Extension>(ext => ext.install())
+.and<vs.Extension>(ext => ext.uninstall())
+.unwrap();
