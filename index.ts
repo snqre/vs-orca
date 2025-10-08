@@ -268,6 +268,7 @@ export type TextMateScope =
     | TextMateMarkup 
     | TextMateSource
     | TextMateOperator
+    | TextMateStorage
     | TextMateVariable
     | TextMatePunctuation
     | TextMateProperty
@@ -431,6 +432,35 @@ export type TextMateOperator =
     | "operator.decrement"
     | "operator.spread"
     | "operator.ellipsis";
+
+export type TextMateStorage =
+    | "storage"
+    | "storage.type"
+    | "storage.type.class"
+    | "storage.type.enum"
+    | "storage.type.interface"
+    | "storage.type.struct"
+    | "storage.type.function"
+    | "storage.type.module"
+    | "storage.type.namespace"
+    | "storage.type.primitive"
+    | "storage.type.parameter"
+    | "storage.type.variable"
+    | "storage.modifier"
+    | "storage.modifier.async"
+    | "storage.modifier.static"
+    | "storage.modifier.export"
+    | "storage.modifier.default"
+    | "storage.modifier.const"
+    | "storage.modifier.let"
+    | "storage.modifier.readonly"
+    | "storage.modifier.public"
+    | "storage.modifier.private"
+    | "storage.modifier.protected"
+    | "storage.modifier.abstract"
+    | "storage.modifier.override"
+    | "storage.modifier.sealed"
+    | "storage.modifier.extern";
 
 export type TextMateVariable =
     | "variable"

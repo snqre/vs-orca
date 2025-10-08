@@ -10,10 +10,10 @@
 		"code",
 		"theme"
 	],
+	"version": "0.1.12",
 	"module": "index.ts",
 	"readme": "readme.md",
 	"private": false,
-	"version": "0.1.11",
 	"devDependencies": {
 		"@types/bun": "latest"
 	},
